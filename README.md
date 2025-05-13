@@ -38,7 +38,7 @@ This approach allows the model to recognize the state of car components regardle
 git lfs install
 
 # Clone the repository
-git clone https://github.com/yourusername/car-component-detection.git
+git clone https://github.com/mosesananta/3D-Car-Component-Detection.git
 cd car-component-detection
 ```
 2. Create a virtual environment and install dependencies:
