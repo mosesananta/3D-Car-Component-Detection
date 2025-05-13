@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Component VLM Detection</title>
+    <style>
+        /* Minimalistic Style */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1, h2, h5 {
+            color: #333;
+            font-weight: 500;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        h1 {
+            font-size: 22px;
+            text-align: center;
+        }
+        h5 {
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        img {
+            max-width: 100%;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4a6baf;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #3a5a9f;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .tab.active {
+            border-bottom: 2px solid #4a6baf;
+            color: #4a6baf;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .col {
+            flex: 1;
+            min-width: 200px;
+        }
+        .description-box {
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border: 1px solid #eee;
+            margin-bottom: 15px;
+            min-height: 100px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        .footer {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+        .loading-spinner {
+            display: none;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to {transform: rotate(360deg);}
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Car Component VLM Detection</h1>
+        
+        <div class="card">
+            <div class="tabs">
+                <div class="tab active" id="capture-tab" onclick="switchTab('capture')">Screen Capture</div>
+                <div class="tab" id="upload-tab" onclick="switchTab('upload')">Upload Image</div>
+                <div class="tab" id="settings-tab" onclick="switchTab('settings')">Settings</div>
+            </div>
+            
+            <!-- Screen Capture Tab -->
+            <div class="tab-content active" id="capture">
+                <div class="form-group">
+                    <p>Click the button below to capture the screen area and analyze it:</p>
+                    <button id="captureBtn">
+                        Capture Screen
+                        <span class="loading-spinner" id="captureSpinner"></span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Upload Tab -->
+            <div class="tab-content" id="upload">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="imageUpload">Select Image</label>
+                        <input type="file" id="imageUpload" accept="image/*">
+                    </div>
+                    <button type="submit" id="uploadBtn">
+                        Analyze Image
+                        <span class="loading-spinner" id="uploadSpinner"></span>
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Settings Tab -->
+            <div class="tab-content" id="settings">
+                <h5>Capture Area Settings</h5>
+                <form id="captureSettingsForm">
+                    <div class="row">
+                        <div class="col">
+                            <label for="topPosition">Top Position</label>
+                            <input type="number" id="topPosition" min="0">
+                        </div>
+                        <div class="col">
+                            <label for="leftPosition">Left Position</label>
+                            <input type="number" id="leftPosition" min="0">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <label for="captureWidth">Width</label>
+                            <input type="number" id="captureWidth" min="100">
+                        </div>
+                        <div class="col">
+                            <label for="captureHeight">Height</label>
+                            <input type="number" id="captureHeight" min="100">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="monitorSelect">Monitor</label>
+                        <select id="monitorSelect">
+                            <option value="0">Primary Monitor (0)</option>
+                            <option value="1">Secondary Monitor (1)</option>
+                            <option value="2">Third Monitor (2)</option>
+                        </select>
+                    </div>
+                    <button type="submit">Save Settings</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Results Section -->
+        <div class="card" id="resultsCard" style="display: none;">
+            <h2>Analysis Results</h2>
+            <div class="row">
+                <div class="col">
+                    <h5>Image</h5>
+                    <img id="resultImage" src="" alt="Result Image">
+                </div>
+                
+                <div class="col">
+                    <h5>VLM Description</h5>
+                    <div class="description-box" id="vlmDescription">
+                        <!-- VLM description will be inserted here -->
+                    </div>
+                    
+                    <p class="footer">Inference time: <span id="inferenceTime">0</span> ms</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Tab switching functionality
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(tabId).classList.add('active');
+            document.getElementById(tabId + '-tab').classList.add('active');
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+                const captureBtn = document.getElementById('captureBtn');
+                const captureSpinner = document.getElementById('captureSpinner');
+                const uploadForm = document.getElementById('uploadForm');
+                const uploadSpinner = document.getElementById('uploadSpinner');
+                const captureSettingsForm = document.getElementById('captureSettingsForm');
+                const resultsCard = document.getElementById('resultsCard');
+                const resultImage = document.getElementById('resultImage');
+                const vlmDescription = document.getElementById('vlmDescription');
+                const inferenceTime = document.getElementById('inferenceTime');
+                
+                // Load current capture settings
+                fetch('/get-capture-settings')
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('topPosition').value = data.top;
+                        document.getElementById('leftPosition').value = data.left;
+                        document.getElementById('captureWidth').value = data.width;
+                        document.getElementById('captureHeight').value = data.height;
+                        document.getElementById('monitorSelect').value = data.monitor;
+                    })
+                    .catch(error => console.error('Error loading settings:', error));
+                
+                // Handle screen capture
+                captureBtn.addEventListener('click', function() {
+                    // Show loading spinner
+                    captureBtn.disabled = true;
+                    captureSpinner.style.display = 'inline-block';
+                    
+                    // Call the capture and analyze endpoint
+                    fetch('/capture-and-analyze')
+                        .then(response => response.json())
+                        .then(data => {
+                            displayResults(data);
+                            captureBtn.disabled = false;
+                            captureSpinner.style.display = 'none';
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('An error occurred during capture and analysis.');
+                            captureBtn.disabled = false;
+                            captureSpinner.style.display = 'none';
+                        });
+                });
+                
+                // Handle image upload
+                uploadForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const fileInput = document.getElementById('imageUpload');
+                    if (!fileInput.files.length) {
+                        alert('Please select an image first.');
+                        return;
+                    }
+                    
+                    const file = fileInput.files[0];
+                    const formData = new FormData();
+                    formData.append('image', file);
+                    
+                    // Show loading state
+                    document.getElementById('uploadBtn').disabled = true;
+                    uploadSpinner.style.display = 'inline-block';
+                    
+                    // Send image for analysis
+                    fetch('/analyze-image', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        displayResults(data);
+                        document.getElementById('uploadBtn').disabled = false;
+                        uploadSpinner.style.display = 'none';
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred during analysis.');
+                        document.getElementById('uploadBtn').disabled = false;
+                        uploadSpinner.style.display = 'none';
+                    });
+                });
+                
+                // Handle capture settings form
+                captureSettingsForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const settings = {
+                        top: parseInt(document.getElementById('topPosition').value),
+                        left: parseInt(document.getElementById('leftPosition').value),
+                        width: parseInt(document.getElementById('captureWidth').value),
+                        height: parseInt(document.getElementById('captureHeight').value),
+                        monitor: parseInt(document.getElementById('monitorSelect').value)
+                    };
+                    
+                    fetch('/set-capture-settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(settings)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            alert('Capture settings saved successfully.');
+                        } else {
+                            alert('Error saving settings: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while saving settings.');
+                    });
+                });
+                
+                // Display analysis results
+                function displayResults(data) {
+                    // Show results card
+                    resultsCard.style.display = 'block';
+                    
+                    // Set result image
+                    resultImage.src = data.image;
+                    
+                    // Display VLM description
+                    vlmDescription.textContent = data.description;
+                    
+                    // Show inference time
+                    inferenceTime.textContent = Math.round(data.inference_time * 1000);
+                    
+                    // Scroll to results
+                    resultsCard.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+    </script>
+</body>
+</html>

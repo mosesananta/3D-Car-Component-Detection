@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Component Status</title>
+    <style>
+        /* Minimalistic Style */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        h2 {
+            color: #333;
+            text-align: center;
+            font-size: 18px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        img {
+            width: 100%;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+        .status-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 15px;
+        }
+        .component-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .component-name {
+            flex: 1;
+            font-weight: 500;
+        }
+        .status-indicator {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+            min-width: 60px;
+            text-align: center;
+        }
+        .open {
+            background-color: #e8f4fd;
+            color: #0078d7;
+        }
+        .closed {
+            background-color: #fde8e8;
+            color: #d70000;
+        }
+        .footer {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+        .actions {
+            margin-top: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4a6baf;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #3a5a9f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2>Car Component Status Monitor</h2>
+            
+            <img id="capturedImage" src="/static/placeholder.png" alt="Captured view">
+            
+            <div class="status-list" id="statusList">
+                <!-- Components will be added here by JavaScript -->
+            </div>
+            
+            <div class="footer" id="infoText">
+                Initializing...
+            </div>
+            
+            <div class="actions">
+                <button id="startBtn">Start Capture</button>
+                <button id="stopBtn">Stop Capture</button>
+                <button id="refreshBtn">Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Component names in desired order
+        const components = [
+            'Front Left Door',
+            'Front Right Door',
+            'Rear Left Door',
+            'Rear Right Door',
+            'Hood'
+        ];
+        
+        // Initialize the UI
+        function initializeUI() {
+            const statusList = document.getElementById('statusList');
+            
+            // Create component status elements
+            components.forEach(component => {
+                const componentElement = document.createElement('div');
+                componentElement.className = 'component-status';
+                
+                const nameElement = document.createElement('div');
+                nameElement.className = 'component-name';
+                nameElement.textContent = component;
+                
+                const statusElement = document.createElement('div');
+                statusElement.className = 'status-indicator closed';
+                statusElement.id = component.replace(/\\s+/g, '-').toLowerCase();
+                statusElement.textContent = 'Closed';
+                
+                componentElement.appendChild(nameElement);
+                componentElement.appendChild(statusElement);
+                
+                statusList.appendChild(componentElement);
+            });
+            
+            // Set up buttons
+            document.getElementById('startBtn').addEventListener('click', startCapture);
+            document.getElementById('stopBtn').addEventListener('click', stopCapture);
+            document.getElementById('refreshBtn').addEventListener('click', refreshImageManually);
+            
+            // Start polling for status and image
+            setInterval(updateStatus, 500);
+            setInterval(updateImage, 500);
+        }
+        
+        // Update UI with latest status
+        async function updateStatus() {
+            try {
+                const response = await fetch('/status');
+                const data = await response.json();
+                
+                // Update each component status
+                for (const [component, state] of Object.entries(data.predictions)) {
+                    const elementId = component.replace(/\\s+/g, '-').toLowerCase();
+                    const element = document.getElementById(elementId);
+                    
+                    if (element) {
+                        element.textContent = state;
+                        element.className = `status-indicator ${state.toLowerCase()}`;
+                    }
+                }
+                
+                // Update info text
+                document.getElementById('infoText').textContent = 
+                    `Inference time: ${(data.inference_time * 1000).toFixed(1)} ms`;
+                
+            } catch (error) {
+                console.error('Error updating status:', error);
+                document.getElementById('infoText').textContent = 'Connection error';
+            }
+        }
+        
+        // Update the captured image
+        async function updateImage() {
+            try {
+                const response = await fetch('/latest-image');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    document.getElementById('capturedImage').src = data.image;
+                }
+            } catch (error) {
+                console.error('Error updating image:', error);
+            }
+        }
+        
+        // Manually refresh the image (when button clicked)
+        async function refreshImageManually() {
+            document.getElementById('infoText').textContent = 'Refreshing image...';
+            await updateImage();
+            document.getElementById('infoText').textContent = 'Image refreshed';
+        }
+        
+        // Start screen capture
+        async function startCapture() {
+            try {
+                const response = await fetch('/start-capture');
+                const data = await response.json();
+                
+                document.getElementById('infoText').textContent = data.message;
+                
+                // Immediately update the image
+                updateImage();
+            } catch (error) {
+                console.error('Error starting capture:', error);
+                document.getElementById('infoText').textContent = 'Failed to start capture';
+            }
+        }
+        
+        // Stop screen capture
+        async function stopCapture() {
+            try {
+                const response = await fetch('/stop-capture');
+                const data = await response.json();
+                
+                document.getElementById('infoText').textContent = data.message;
+            } catch (error) {
+                console.error('Error stopping capture:', error);
+                document.getElementById('infoText').textContent = 'Failed to stop capture';
+            }
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('DOMContentLoaded', initializeUI);
+    </script>
+</body>
+</html>
