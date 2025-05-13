@@ -39,11 +39,13 @@ git lfs install
 
 # Clone the repository
 git clone https://github.com/mosesananta/3D-Car-Component-Detection.git
-cd car-component-detection
+cd 3D-Car-Component-Detection
 ```
 2. Create a virtual environment and install dependencies:
 ```bash
 uv venv
+.venv\Scripts\activate
+uv pip install torch==2.4.1 torchvision==0.19.1 --extra-index-url https://download.pytorch.org/whl/cu124
 uv pip install -r requirements.txt
 ```
 
