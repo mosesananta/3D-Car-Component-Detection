@@ -121,8 +121,8 @@ def preprocess_car_images(dataset_path, output_path, target_size=(224, 224), mar
 
 # Example usage:
 preprocess_car_images(
-    dataset_path="car_state_dataset_multilabel_large/images",
-    output_path="car_state_dataset_preprocessed/images",
+    dataset_path="car_state_dataset_multilabel/images",
+    output_path="car_state_dataset_multilabel_preprocessed/images",
     target_size=(224, 224),
     margin_percent=15
 )

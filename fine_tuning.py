@@ -26,7 +26,7 @@ np.random.seed(42)
 
 # Configuration
 CONFIG = {
-    "dataset_path": "/kaggle/input/3dcardata/car_state_dataset_preprocessed",
+    "dataset_path": "car_state_dataset_multilabel_preprocessed",
     "batch_size": 64,
     "num_epochs": 100,
     "feature_extractor_lr": 0.00005,  # 10x lower for pre-trained features

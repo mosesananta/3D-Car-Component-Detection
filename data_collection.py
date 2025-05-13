@@ -16,7 +16,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 class CarModelMultiLabelDataCollector:
-    def __init__(self, url, dataset_path="car_state_dataset_multilabel_small", use_wandb=True):
+    def __init__(self, url, dataset_path="car_state_dataset_multilabel", use_wandb=True):
         """Initialize the data collector with target URL and dataset storage path."""
         self.url = url
         self.dataset_path = dataset_path

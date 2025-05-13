@@ -25,7 +25,7 @@ random.seed(42)
 
 # Configuration
 CONFIG = {
-    "dataset_path": "/kaggle/input/3dcardata/car_state_dataset_preprocessed",
+    "dataset_path": "car_state_dataset_multilabel_preprocessed",
     "batch_size": 128,
     "num_epochs": 500,
     "learning_rate": 0.001,
