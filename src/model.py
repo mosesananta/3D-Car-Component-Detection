@@ -1,6 +1,14 @@
+import os
+import numpy as np
+
+import cv2
+from PIL import Image
+
 import torch
 import torch.nn as nn
-
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torchvision.transforms as transforms
+from peft import PeftModel, PeftConfig
 
 class ResidualBlock(nn.Module):
     """Basic residual block for ResNet architecture."""
@@ -263,3 +271,171 @@ class ComponentClassifier(nn.Module):
         if return_features:
             return logits, features, projections
         return logits
+    
+class VisionProjectionLayer(nn.Module):
+    """Projects visual features from CNN to the LLM embedding space"""
+    
+    def __init__(self, 
+                 vision_feature_dim=2048,     # CNN feature dimension
+                 vision_classifier_dim=5,     # Number of components 
+                 llm_embedding_dim=576,       # SmolLM2 embedding dimension
+                 hidden_dim=768):             # Projection hidden dimension
+        super().__init__()
+        
+        # Feature projection path - added an extra layer
+        self.feature_projection = nn.Sequential(
+            nn.Linear(vision_feature_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim),  # Added layer
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, llm_embedding_dim)
+        )
+        
+        # Classification result projection path
+        self.classifier_projection = nn.Sequential(
+            nn.Linear(vision_classifier_dim, hidden_dim // 4),
+            nn.LayerNorm(hidden_dim // 4),
+            nn.GELU(),
+            nn.Linear(hidden_dim // 4, llm_embedding_dim)
+        )
+        
+        # Combined attention pooling
+        self.attention_pool = nn.Sequential(
+            nn.Linear(llm_embedding_dim * 2, llm_embedding_dim),
+            nn.Tanh()
+        )
+        
+    def forward(self, features, classifier_outputs):
+        # Project features and classifier outputs
+        feature_embedding = self.feature_projection(features)
+        classifier_embedding = self.classifier_projection(classifier_outputs)
+        
+        # Combine projections
+        combined = torch.cat([feature_embedding, classifier_embedding], dim=1)
+        visual_embedding = self.attention_pool(combined)
+        
+        return visual_embedding
+
+# CNN Component Detector + SmolLM2 Implementation
+class CarComponentVLM(nn.Module):
+    """
+    Custom VLM that combines:
+    1. CNN car component detector
+    2. Projection layer
+    3. SmolLM2 LLM with LoRA
+    """
+    
+    def __init__(self, cnn_path, projection_path, llm_path, adapter_path):
+        super().__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        # Load the CNN model
+        self.vision_model = ComponentClassifier(embedding_dim=256)
+        checkpoint = torch.load(cnn_path, map_location=self.device)
+        self.vision_model.load_state_dict(checkpoint['model_state_dict'])
+        self.vision_model.eval()
+        
+        # Load the projection layer
+        self.projection_layer = VisionProjectionLayer(
+            vision_feature_dim=2048,  # ResNet50 feature dim
+            vision_classifier_dim=5,  # 5 car components
+            llm_embedding_dim=576,    # SmolLM2 embedding dim
+            hidden_dim=768
+        )
+        projection_state_dict = torch.load(projection_path, map_location=self.device)
+        self.projection_layer.load_state_dict(projection_state_dict)
+        self.projection_layer.eval()
+        
+        # Load the tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(llm_path)
+        special_tokens = {"additional_special_tokens": ["<image>", "</image>"]}
+        self.tokenizer.add_special_tokens(special_tokens)
+        
+        # Load the LoRA-tuned LLM
+        
+        self.llm = AutoModelForCausalLM.from_pretrained(llm_path)
+        self.llm.resize_token_embeddings(len(self.tokenizer))
+        
+        # Load LoRA adapter
+        lora_path = adapter_path
+        self.llm = PeftModel.from_pretrained(self.llm, lora_path)
+        self.llm.eval()
+        
+        # Move everything to device
+        self.vision_model = self.vision_model.to(self.device)
+        self.projection_layer = self.projection_layer.to(self.device)
+        self.llm = self.llm.to(self.device)
+        
+        # Image preprocessing
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+    
+    def generate(self, image, prompt=None, **kwargs):
+        """
+        Generate description for an image
+        """
+        if isinstance(image, np.ndarray):
+            # Convert from OpenCV format to PIL
+            image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        
+        # Apply transform
+        img_tensor = self.transform(image).unsqueeze(0).to(self.device)
+        
+        # Default prompt if none provided
+        if prompt is None:
+            prompt = "Examine this car image and describe which doors and hood are open or closed."
+        
+        # Create messages
+        messages = [
+            {"role": "user", "content": f"{prompt}\n<image></image>"}
+        ]
+        
+        # Format with chat template
+        input_text = self.tokenizer.apply_chat_template(messages, tokenize=False)
+        input_ids = self.tokenizer.encode(input_text, return_tensors="pt").to(self.device)
+        
+        # Process image through CNN and get features
+        with torch.no_grad():
+            logits, features, _ = self.vision_model(img_tensor, return_features=True)
+            sigmoid_outputs = torch.sigmoid(logits)
+        
+        # Project visual features to LLM embedding space
+        visual_embedding = self.projection_layer(features, sigmoid_outputs)
+        
+        # Replace <image> token with visual embedding
+        image_token_id = self.tokenizer.convert_tokens_to_ids("<image>")
+        image_pos = (input_ids[0] == image_token_id).nonzero(as_tuple=True)[0]
+        
+        if len(image_pos) > 0:
+            image_pos = image_pos[0]
+            llm_inputs = self.llm.get_input_embeddings()(input_ids)
+            llm_inputs[0, image_pos] = visual_embedding[0]
+            
+            # Generate text
+            outputs = self.llm.generate(
+                inputs_embeds=llm_inputs,
+                max_new_tokens=kwargs.get("max_new_tokens", 100),
+                do_sample=kwargs.get("do_sample", True),
+                temperature=kwargs.get("temperature", 0.2),
+              )
+            
+            # Decode output
+            generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            # Extract only the generated part after the prompt
+            prompt_end = generated_text.find("assistant")
+            if prompt_end != -1:
+                assistant_text = generated_text[prompt_end+len("assistant"):]
+                assistant_start = assistant_text.find(": ")
+                if assistant_start != -1:
+                    return assistant_text[assistant_start+2:]
+            
+            return generated_text
