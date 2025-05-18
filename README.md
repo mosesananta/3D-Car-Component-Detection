@@ -77,7 +77,9 @@ After clicking the `Start Capture` button, the application will automatically ca
 ```bash
 python app_vlm.py
 ```
-Open your browser and navigate to http://localhost:8000 to start interacting with the VLM interface. Screen capture will capture screenshot from the configured capture area to be analyzed by the VLM
+Open your browser and navigate to http://localhost:8000 to start interacting with the VLM interface. Screen capture will capture screenshot from the configured capture area to be analyzed by the VLM.
+
+**Important Note**: script loading may take 5-10 minutes depending on hardware
 
 ## Training Your Own Models
 ### 1. Data Collection & Data Preprocessing
